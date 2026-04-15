@@ -30,6 +30,7 @@ void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
 		LED1.Off();
 		printf(">> Command Executed: LED1 is OFF!\r\n");
 		}
+	uart_parse_and_set_rtc((const char*)buffer);
 }
 
 int main(void)
@@ -53,8 +54,6 @@ int main(void)
 	/* 2. 初始化 RTC 模块（自动识别是否需要冷启动配置） */
 	bsp_rtc_init();
 
-	/* 3. 配置自动唤醒 (参数为 0x05，即 5+1=6秒 唤醒一次) */
-	bsp_rtc_set_wakeup(0x05);
 	bsp_rtc_get_time();
 	/* 2. 炫酷的 6 灯流水自检 */
 	BSP_LED_SystemTest();

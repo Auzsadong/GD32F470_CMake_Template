@@ -14,5 +14,7 @@ extern rtc_parameter_struct rtc_initpara;
 void bsp_rtc_init(void);
 void bsp_rtc_set_wakeup(uint32_t seconds);
 void bsp_rtc_get_time(void);
+uint8_t bsp_rtc_set_time(uint8_t year, uint8_t month, uint8_t date, uint8_t day_of_week, uint8_t hour, uint8_t minute, uint8_t second);
+void uart_parse_and_set_rtc(const char *rx_buffer);
 
 #endif /* __BSP_RTC_H */
