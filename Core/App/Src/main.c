@@ -3,15 +3,24 @@
 #include "gd32f4xx_gpio.h"
 #include "main.h"
 
-void My_Uart_Rx_Handler(uint8_t data) {
-	// 收到什么就发回什么 (回显)
-	DebugUART.SendByte(data);
+void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
+	// 打印收到了多少个字节
+	printf("\r\n[UART_RX] Received %d Bytes. Content: ", length);
 
-	// 如果收到字符 'A'，就点亮 LED1
-	if(data == 'A') {
-		LED1.On();
-		printf("\r\n[SYSTEM] LED1 is turned ON by UART Command!\r\n");
+	// 把收到的整帧数据原样回传 (回显)
+	for(int i = 0; i < length; i++) {
+		DebugUART.SendByte(buffer[i]);
 	}
+	printf("\r\n");
+
+	// 简易指令解析演示：如果收到 "LED_ON"
+	if (length >= 6 &&
+		buffer[0] == 'L' && buffer[1] == 'E' && buffer[2] == 'D' &&
+		buffer[3] == '_' && buffer[4] == 'O' && buffer[5] == 'N') {
+
+		LED1.On();
+		printf(">> Command Executed: LED1 is ON!\r\n");
+		}
 }
 
 int main(void)
@@ -22,8 +31,7 @@ int main(void)
 	BSP_LED_InitAll();
 
 	DebugUART.Init(115200);
-	// 将我们写的处理函数挂载到串口接收上！彻底告别在 it.c 里写业务代码！
-	DebugUART.RegisterRxCallback(My_Uart_Rx_Handler);
+	DebugUART.RegisterRxFrameCallback(My_Uart_Frame_Handler);
 
 	/* 2. 炫酷开机自检与打印 */
 	printf("\r\n========================================\r\n");
@@ -34,8 +42,9 @@ int main(void)
 
 	/* 2. 炫酷的 6 灯流水自检 */
 	BSP_LED_SystemTest();
-
+	float text=99.8f;
 	while(1) {
+		printf("%.2f\r\n", text);
 		LED6.Toggle(); // 心跳灯
 		delay_1ms(1000);
 	}

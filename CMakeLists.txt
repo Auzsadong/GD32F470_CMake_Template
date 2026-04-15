@@ -63,6 +63,7 @@ target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
         -T${LINKER_SCRIPT}
         -Wl,-Map=${CMAKE_PROJECT_NAME}.map
         -Wl,--gc-sections
+        -Wl,-u,_printf_float
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
