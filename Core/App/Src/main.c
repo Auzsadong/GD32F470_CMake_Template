@@ -3,6 +3,8 @@
 #include "gd32f4xx_gpio.h"
 #include "main.h"
 
+#include "bsp_rtc.h"
+
 void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
 	// 打印收到了多少个字节
 	printf("\r\n[UART_RX] Received %d Bytes. Content: ", length);
@@ -47,9 +49,15 @@ int main(void)
 	printf("========================================\r\n");
 
 
+
+	/* 2. 初始化 RTC 模块（自动识别是否需要冷启动配置） */
+	bsp_rtc_init();
+
+	/* 3. 配置自动唤醒 (参数为 0x05，即 5+1=6秒 唤醒一次) */
+	bsp_rtc_set_wakeup(0x05);
+	bsp_rtc_get_time();
 	/* 2. 炫酷的 6 灯流水自检 */
 	BSP_LED_SystemTest();
-	float text=99.8f;
 	while(1) {
 
 		LED6.Toggle(); // 心跳灯

@@ -33,6 +33,8 @@ OF SUCH DAMAGE.
 */
 
 #include "gd32f4xx_it.h"
+
+#include "bsp_rtc.h"
 #include "systick.h"
 #include "bsp_uart.h"
 
@@ -144,4 +146,18 @@ void USART0_IRQHandler(void)
 {
     // 将处理逻辑转交给 Bsp 层
     BSP_UART0_IRQHandler_Logic();
+}
+void RTC_WKUP_IRQHandler(void)
+{
+    if(RESET != rtc_flag_get(RTC_FLAG_WT)){
+        /* 清除外部中断和 RTC 标志位 */
+        exti_flag_clear(EXTI_22);
+        rtc_flag_clear(RTC_FLAG_WT);
+
+        /* [核心操作]：关闭唤醒，防止它变成周期性唤醒 */
+        bsp_rtc_set_wakeup(0);
+
+        /* 下面执行你的唤醒后逻辑，比如系统恢复、传感器读取等 */
+        // ...
+    }
 }

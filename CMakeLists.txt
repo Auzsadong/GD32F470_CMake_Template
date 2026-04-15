@@ -11,7 +11,9 @@ set(CMAKE_C_STANDARD 11)
 # 只有先执行了这一行，后面的 target_include_directories 才能找到对象
 add_executable(${CMAKE_PROJECT_NAME}
         Core/Bsp/bsp_uart.c
-        Core/Bsp/bsp_uart.h)
+        Core/Bsp/bsp_uart.h
+        Core/Bsp/bsp_rtc.c
+        Core/Bsp/bsp_rtc.h)
 
 # 3. 宏定义
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
