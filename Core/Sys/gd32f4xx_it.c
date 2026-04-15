@@ -34,6 +34,7 @@ OF SUCH DAMAGE.
 
 #include "gd32f4xx_it.h"
 #include "systick.h"
+#include "bsp_uart.h"
 
 /*!
     \brief      this function handles NMI exception
@@ -136,4 +137,11 @@ void PendSV_Handler(void)
 void SysTick_Handler(void)
 {
     delay_decrement();
+}
+
+// USART0 的硬件中断入口
+void USART0_IRQHandler(void)
+{
+    // 将处理逻辑转交给 Bsp 层
+    BSP_UART0_IRQHandler_Logic();
 }

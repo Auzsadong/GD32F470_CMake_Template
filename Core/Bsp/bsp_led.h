@@ -4,7 +4,6 @@
 #include "gd32f4xx.h"
 
 /* ================== LED 硬件映射宏定义 ================== */
-/* 如果引脚变动，只需修改这里 */
 
 // LED1
 #define LED1_RCU     RCU_GPIOA
@@ -49,7 +48,7 @@ typedef struct {
     void (*Toggle)(void);
 } LED_Device_t;
 
-/* 暴露 6 个 LED 实例 */
+// 暴露 6 个 LED 实例
 extern LED_Device_t LED1, LED2, LED3, LED4, LED5, LED6;
 
 /* 批量操作接口 */

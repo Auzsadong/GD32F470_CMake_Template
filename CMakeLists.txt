@@ -9,7 +9,9 @@ set(CMAKE_C_STANDARD 11)
 
 # 2. 【关键修复】在此处定义目标
 # 只有先执行了这一行，后面的 target_include_directories 才能找到对象
-add_executable(${CMAKE_PROJECT_NAME})
+add_executable(${CMAKE_PROJECT_NAME}
+        Core/Bsp/bsp_uart.c
+        Core/Bsp/bsp_uart.h)
 
 # 3. 宏定义
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
@@ -39,7 +41,7 @@ file(GLOB_RECURSE PERIPH_SOURCES "Drivers/Library/GD32F4xx_standard_peripheral/S
 
 # 系统初始化与你指定的启动文件
 set(STARTUP_SYSTEM_SOURCES
-        "Drivers/CMSIS/GD/GD32F4xx/Source/system_gd32f4xx.c"
+        "Core/Sys/system_gd32f4xx.c"
         "startup_gd32f407_427.s"
 )
 
