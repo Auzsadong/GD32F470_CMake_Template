@@ -21,6 +21,13 @@ void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
 		LED1.On();
 		printf(">> Command Executed: LED1 is ON!\r\n");
 		}
+	if (length >= 7 &&
+		buffer[0] == 'L' && buffer[1] == 'E' && buffer[2] == 'D' &&
+		buffer[3] == '_' && buffer[4] == 'O' && buffer[5] == 'F'&&buffer[6] == 'F') {
+
+		LED1.Off();
+		printf(">> Command Executed: LED1 is OFF!\r\n");
+		}
 }
 
 int main(void)
@@ -44,7 +51,7 @@ int main(void)
 	BSP_LED_SystemTest();
 	float text=99.8f;
 	while(1) {
-		printf("%.2f\r\n", text);
+
 		LED6.Toggle(); // 心跳灯
 		delay_1ms(1000);
 	}
