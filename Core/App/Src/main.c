@@ -30,7 +30,11 @@ void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
 		LED1.Off();
 		printf(">> Command Executed: LED1 is OFF!\r\n");
 		}
-	uart_parse_and_set_rtc((const char*)buffer);
+	// 如果字符串是以 "RTC " 开头的
+	if (strncmp((const char*)buffer, "RTC ", 4) == 0) {
+		uart_parse_and_set_rtc((const char*)buffer);
+	}
+
 }
 
 int main(void)

@@ -216,8 +216,7 @@ void uart_parse_and_set_rtc(const char *rx_buffer)
         }
 
     } else {
-        /* 如果字符串前缀不是 RTC 或者数字不够 */
-        printf("Error: Invalid Format! Please use: RTC YYYY MM DD HH MM\r\n");
+        return ;
     }
 }
 /*!
