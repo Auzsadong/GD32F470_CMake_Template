@@ -67,6 +67,7 @@ static void UART0_Init(uint32_t baudrate) {
     /* 6. 使能串口的 DMA 接收请求，并配置空闲中断 (IDLE) */
     usart_dma_receive_config(UART0_PERIPH, USART_RECEIVE_DMA_ENABLE); // 告诉串口把收到的数据扔给 DMA
     usart_interrupt_enable(UART0_PERIPH, USART_INT_IDLE);             // 开启总线空闲中断
+    usart_interrupt_enable(UART0_PERIPH, USART_INT_ERR);
     nvic_irq_enable(UART0_IRQ, 2, 0);
 
     /* 7. 最后使能串口 */
@@ -102,8 +103,7 @@ void BSP_UART0_IRQHandler_Logic(void) {
     // 1. 检查是否是空闲中断 (IDLE)
     if(RESET != usart_interrupt_flag_get(UART0_PERIPH, USART_INT_FLAG_IDLE)) {
 
-        // 【修复1】清除 IDLE 标志：硬件规定先读状态寄存器，再读数据寄存器
-        // usart_interrupt_flag_get 内部已经读了状态，这里再读数据即可清除
+        // 清除 IDLE 标志
         volatile uint32_t temp_data = usart_data_receive(UART0_PERIPH);
         (void)temp_data;
 
@@ -111,12 +111,12 @@ void BSP_UART0_IRQHandler_Logic(void) {
         dma_channel_disable(UART0_DMA, UART0_DMA_CH);
 
         // 计算本次接收的长度
-        uint16_t rx_len = UART0_RX_BUF_SIZE - dma_transfer_number_get(UART0_DMA, UART0_DMA_CH);
+        uint16_t remain = dma_transfer_number_get(UART0_DMA, UART0_DMA_CH);
+        uint16_t rx_len = UART0_RX_BUF_SIZE - remain;
 
-        // 【终极修复：局部双缓冲】
-        // 核心思想：把数据秒速拷贝出来，立刻重启 DMA，防止 printf 卡住总线导致 ORE 溢出！
-        // 使用 static 放在静态区，防止爆栈
         static uint8_t process_buffer[UART0_RX_BUF_SIZE];
+
+        // 只有长度合法时才处理，过滤掉 rx_len 异常的情况 (防 255 字节 \0 暴击)
         if(rx_len > 0 && rx_len <= UART0_RX_BUF_SIZE) {
             for(uint16_t i = 0; i < rx_len; i++) {
                 process_buffer[i] = s_Uart0_RxBuffer[i];
@@ -125,33 +125,32 @@ void BSP_UART0_IRQHandler_Logic(void) {
 
         // 清除残留的 DMA 标志位
         dma_flag_clear(UART0_DMA, UART0_DMA_CH, DMA_FLAG_FTF);
-        dma_flag_clear(UART0_DMA, UART0_DMA_CH, DMA_FLAG_HTF);
-        dma_flag_clear(UART0_DMA, UART0_DMA_CH, DMA_FLAG_SDE);
-        dma_flag_clear(UART0_DMA, UART0_DMA_CH, DMA_FLAG_TAE);
 
         // 【立刻重启 DMA】
-        // 此时 CPU 才花了不到 1 微秒，DMA 就已经重新上线继续接收数据了
         dma_transfer_number_config(UART0_DMA, UART0_DMA_CH, UART0_RX_BUF_SIZE);
         dma_channel_enable(UART0_DMA, UART0_DMA_CH);
 
         // 把拷贝出来的安全数据交给应用层
-        // 就算应用层在里面疯狂 printf，也不会影响后台的 DMA 接收了
-        if(s_Uart0_FrameCallback != NULL && rx_len > 0) {
+        if(s_Uart0_FrameCallback != NULL && rx_len > 0 && rx_len <= UART0_RX_BUF_SIZE) {
             s_Uart0_FrameCallback(process_buffer, rx_len);
         }
     }
 
-    // 【修复2】终极兜底：使用 raw flag 检查并清除硬件错误
-    // 如果极端情况下还是发生了溢出(ORERR)、帧错误(FERR)、噪声(NERR)
+    // 2. 硬件错误处理 (ORE/FERR/NERR) - 现在有了 USART_INT_ERR，这里一定能被执行到
     if(RESET != usart_flag_get(UART0_PERIPH, USART_FLAG_ORERR) ||
        RESET != usart_flag_get(UART0_PERIPH, USART_FLAG_FERR) ||
        RESET != usart_flag_get(UART0_PERIPH, USART_FLAG_NERR)) {
 
-        // 清除这些错误的唯一标准姿势：读状态，再读数据
-        // flag_get 刚才已经读了状态，再读一次数据就能解开硬件死锁
+        // 读数据寄存器解开硬件死锁
         volatile uint32_t err_data = usart_data_receive(UART0_PERIPH);
         (void)err_data;
-    }
+
+        // 【关键修复 2】：发生溢出/帧错误时，当前帧已损坏，强制复位 DMA
+        dma_channel_disable(UART0_DMA, UART0_DMA_CH);
+        dma_flag_clear(UART0_DMA, UART0_DMA_CH, DMA_FLAG_FTF);
+        dma_transfer_number_config(UART0_DMA, UART0_DMA_CH, UART0_RX_BUF_SIZE);
+        dma_channel_enable(UART0_DMA, UART0_DMA_CH);
+       }
 }
 
 

@@ -15,7 +15,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Bsp/bsp_rtc.c
         Core/Bsp/bsp_rtc.h
         Core/Bsp/bsp_adc.c
-        Core/Bsp/bsp_adc.h)
+        Core/Bsp/bsp_adc.h
+        Core/Bsp/bsp_dac.c
+        Core/Bsp/bsp_dac.h)
 
 # 3. 宏定义
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE

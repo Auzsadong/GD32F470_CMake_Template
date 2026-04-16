@@ -1,5 +1,3 @@
-
-
 #include "gd32f4xx_gpio.h"
 #include "main.h"
 
@@ -62,14 +60,16 @@ int main(void)
 	/* 2. 炫酷的 6 灯流水自检 */
 	BSP_LED_SystemTest();
 
-	bsp_adc_Start_Init(ADC0, GPIOC, GPIO_PIN_0, ADC_TRANS_MODE_DMA);
-	bsp_adc_Start_Init(ADC1, GPIOC, GPIO_PIN_2, ADC_TRANS_MODE_DMA);
+	bsp_adc_Start_Init(ADC0, GPIOC, GPIO_PIN_0, ADC_TRANS_MODE_IT);
+	bsp_adc_Start_Init(ADC1, GPIOC, GPIO_PIN_2, ADC_TRANS_MODE_IT);
 	//bsp_adc_Start_Two_Init(ADC2, GPIOA, GPIO_PIN_0, GPIOA, GPIO_PIN_1, ADC_TRANS_MODE_DMA);单ADC复用
 	while(1) {
-		uint16_t adc_val = bsp_get_adc_value(ADC0, 0);
-		uint16_t pc2_val = bsp_get_adc_value(ADC1, 0);
-		printf("ADC Value on PC0 = %.2f\n", adc_val*3.3/4096.0);
-		printf("ADC Value on PC2 = %.2f\n", pc2_val*3.3/4096.0);
+		uint16_t adc0_val = bsp_get_adc_value(ADC0, 0);
+		uint16_t adc1_val = bsp_get_adc_value(ADC1, 0);
+
+		// 打印电压值 (假设基准电压是 3.3V，12位精度4096)
+		printf("ADC0 (PC0) Voltage = %.2f V\r\n", adc0_val * 3.3 / 4096.0);
+		printf("ADC1 (PC2) Voltage = %.2f V\r\n", adc1_val * 3.3 / 4096.0);
 		LED6.Toggle(); // 心跳灯
 		delay_1ms(1000);
 	}

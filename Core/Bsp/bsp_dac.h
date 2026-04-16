@@ -1,0 +1,8 @@
+//
+// Created by ADMIN on 2026/4/16.
+//
+
+#ifndef GD32F470_PROJECT_BSP_DAC_H
+#define GD32F470_PROJECT_BSP_DAC_H
+
+#endif //GD32F470_PROJECT_BSP_DAC_H
