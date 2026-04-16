@@ -6,34 +6,34 @@
 /* ================== LED 硬件映射宏定义 ================== */
 
 // LED1
-#define LED1_RCU     RCU_GPIOA
-#define LED1_PORT    GPIOA
-#define LED1_PIN     GPIO_PIN_4
+#define LED1_RCU     RCU_GPIOE
+#define LED1_PORT    GPIOE
+#define LED1_PIN     GPIO_PIN_3
 
 // LED2
-#define LED2_RCU     RCU_GPIOA
-#define LED2_PORT    GPIOA
-#define LED2_PIN     GPIO_PIN_5
+#define LED2_RCU     RCU_GPIOE
+#define LED2_PORT    GPIOE
+#define LED2_PIN     GPIO_PIN_4
 
 // LED3
-#define LED3_RCU     RCU_GPIOA
-#define LED3_PORT    GPIOA
-#define LED3_PIN     GPIO_PIN_6
+#define LED3_RCU     RCU_GPIOE
+#define LED3_PORT    GPIOE
+#define LED3_PIN     GPIO_PIN_5
 
 // LED4
-#define LED4_RCU     RCU_GPIOA
-#define LED4_PORT    GPIOA
-#define LED4_PIN     GPIO_PIN_7
+#define LED4_RCU     RCU_GPIOE
+#define LED4_PORT    GPIOE
+#define LED4_PIN     GPIO_PIN_6
 
 // LED5
 #define LED5_RCU     RCU_GPIOC
 #define LED5_PORT    GPIOC
-#define LED5_PIN     GPIO_PIN_4
+#define LED5_PIN     GPIO_PIN_13
 
 // LED6
-#define LED6_RCU     RCU_GPIOC
-#define LED6_PORT    GPIOC
-#define LED6_PIN     GPIO_PIN_5
+#define LED6_RCU     RCU_GPIOA
+#define LED6_PORT    GPIOA
+#define LED6_PIN     GPIO_PIN_6
 
 /* ================== 抽象对象定义 ================== */
 
