@@ -19,6 +19,7 @@
 #include "string.h"
 #include "../../Bsp/bsp_led.h"
 #include  "bsp_uart.h"
+#include  "bsp_adc.h"
 
 #endif
 

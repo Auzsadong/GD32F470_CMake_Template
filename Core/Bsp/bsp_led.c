@@ -68,4 +68,9 @@ void BSP_LED_SystemTest(void) {
         delay_1ms(200);
         leds[i]->Off();
     }
+    for(int i = 5; i >= 0; i--) {
+        leds[i]->On();
+        delay_1ms(200);
+        leds[i]->Off();
+    }
 }

@@ -61,8 +61,15 @@ int main(void)
 	bsp_rtc_get_time();
 	/* 2. 炫酷的 6 灯流水自检 */
 	BSP_LED_SystemTest();
-	while(1) {
 
+	bsp_adc_Start_Init(ADC0, GPIOC, GPIO_PIN_0, ADC_TRANS_MODE_DMA);
+	bsp_adc_Start_Init(ADC1, GPIOC, GPIO_PIN_2, ADC_TRANS_MODE_DMA);
+	//bsp_adc_Start_Two_Init(ADC2, GPIOA, GPIO_PIN_0, GPIOA, GPIO_PIN_1, ADC_TRANS_MODE_DMA);单ADC复用
+	while(1) {
+		uint16_t adc_val = bsp_get_adc_value(ADC0, 0);
+		uint16_t pc2_val = bsp_get_adc_value(ADC1, 0);
+		printf("ADC Value on PC0 = %.2f\n", adc_val*3.3/4096.0);
+		printf("ADC Value on PC2 = %.2f\n", pc2_val*3.3/4096.0);
 		LED6.Toggle(); // 心跳灯
 		delay_1ms(1000);
 	}
