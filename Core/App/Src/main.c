@@ -34,7 +34,7 @@ void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
 	}
 
 }
-#define CONVERT_NUM  (256)
+#define CONVERT_NUM  (1024)
  uint8_t convertarr[CONVERT_NUM] = {};
 int main(void)
 {
@@ -71,21 +71,26 @@ int main(void)
 
 	for (int i = 0; i < CONVERT_NUM; i++)
 	{
-		/* 计算弧度 */
+		/* 1. 计算原始弧度 (0 到 2π) */
 		float radians = 2.0f * PI * (float)i / (float)CONVERT_NUM;
 
-		/* 调用标准库的单精度正弦函数 */
+		/* 2. 求单精度正弦值 */
 		float sin_val = sinf(radians);
 
-		/* 映射到 0~255 的 8位 DAC 范围 */
-		convertarr[i] = (uint8_t)((sin_val + 1.0f) * 127.5f);
+		/* 3. 核心步骤：负半轴翻转 (取绝对值) */
+		float abs_sin_val = fabsf(sin_val);
+
+		/* 4. 映射到 0~255 的 8位 DAC 范围
+		 * 此时 abs_sin_val 的范围已经是 0.0 ~ 1.0，直接乘 255 即可
+		 */
+		convertarr[i] = (uint8_t)(abs_sin_val * 255.0f);
 	}
 
 	/* 第一步：启动普通 CPU 中断模式，底层会自动记录数组长度为 10 */
 	GD32_dac_bsp_Start(GPIOA, GPIO_PIN_4, DAC_DMA, convertarr, CONVERT_NUM);
 
 	/* 第二步：优雅地设定频率，比如我们想输出一个 120.5Hz 的波形 */
-	GD32_DAC_TIM5_Base(DAC0, 10000);
+	GD32_DAC_TIM5_Base(DAC0, 5000);
 	while(1) {
 		uint16_t adc0_val = bsp_get_adc_value(ADC0, 0);
 		uint16_t adc1_val = bsp_get_adc_value(ADC1, 0);
