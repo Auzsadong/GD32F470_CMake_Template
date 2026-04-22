@@ -22,6 +22,8 @@
 #include  "bsp_adc.h"
 #include "bsp_rtc.h"
 #include  "bsp_dac.h"
+#include "bsp_oled.h"
+#include "font.h"
 
 #endif
 

@@ -38,6 +38,7 @@ void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
  uint8_t convertarr[CONVERT_NUM] = {};
 int main(void)
 {
+
 	systick_config();
 
 	/* 1. 一键初始化所有 LED */
@@ -52,7 +53,16 @@ int main(void)
 	printf("=   System Clock: %ld Hz         =\r\n", rcu_clock_freq_get(CK_SYS));
 	printf("========================================\r\n");
 
+	OLED_Init(I2C0, GPIOB, GPIO_PIN_8, GPIOB, GPIO_PIN_9);
 
+	// 绘制新的一帧
+	OLED_NewFrame();
+
+	// 绘制一个矩形和一段文本
+	//OLED_DrawRectangle(10, 40, 50, 30, OLED_COLOR_NORMAL);
+	OLED_PrintASCIIString(10, 4, "GD32F4", &afont16x8, OLED_COLOR_NORMAL); // afont8x6 取自 font.c
+
+	OLED_ShowFrame();
 
 	/* 2. 初始化 RTC 模块（自动识别是否需要冷启动配置） */
 	bsp_rtc_init();
@@ -66,7 +76,7 @@ int main(void)
 	//bsp_adc_Start_Two_Init(ADC2, GPIOA, GPIO_PIN_0, GPIOA, GPIO_PIN_1, ADC_TRANS_MODE_DMA);单ADC复用
 
 	/* 引入 ARM 数学库中的 PI 宏 (PI = 3.14159265358979f) */
-#define PI  3.14159265358979f
+    #define PI  3.14159265358979f
 
 
 	for (int i = 0; i < CONVERT_NUM; i++)
@@ -91,13 +101,16 @@ int main(void)
 
 	/* 第二步：优雅地设定频率，比如我们想输出一个 120.5Hz 的波形 */
 	GD32_DAC_TIM5_Base(DAC0, 5000);
-	while(1) {
-		uint16_t adc0_val = bsp_get_adc_value(ADC0, 0);
-		uint16_t adc1_val = bsp_get_adc_value(ADC1, 0);
 
-		// 打印电压值 (假设基准电压是 3.3V，12位精度4096)
-		printf("ADC0 (PC0) Voltage = %.2f V\r\n", adc0_val * 3.3 / 4096.0);
-		printf("ADC1 (PC2) Voltage = %.2f V\r\n", adc1_val * 3.3 / 4096.0);
+	uint16_t adc0_val = bsp_get_adc_value(ADC0, 0);
+	uint16_t adc1_val = bsp_get_adc_value(ADC1, 0);
+
+	// 打印电压值 (假设基准电压是 3.3V，12位精度4096)
+	printf("ADC0 (PC0) Voltage = %.2f V\r\n", adc0_val * 3.3 / 4096.0);
+	printf("ADC1 (PC2) Voltage = %.2f V\r\n", adc1_val * 3.3 / 4096.0);
+
+	while(1) {
+
 		LED6.Toggle(); // 心跳灯
 		delay_1ms(1000);
 	}
