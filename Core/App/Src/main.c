@@ -69,7 +69,7 @@ int main(void)
 	GD32_dac_bsp_Start(GPIOA, GPIO_PIN_4, DAC_IT, convertarr, CONVERT_NUM);
 
 	/* 第二步：优雅地设定频率，比如我们想输出一个 120.5Hz 的波形 */
-	GD32_DAC_TIM5_Base(DAC0, 120.5f);
+	GD32_DAC_TIM5_Base(DAC0, 10000.0f);
 	while(1) {
 		uint16_t adc0_val = bsp_get_adc_value(ADC0, 0);
 		uint16_t adc1_val = bsp_get_adc_value(ADC1, 0);
