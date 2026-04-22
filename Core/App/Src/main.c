@@ -1,7 +1,7 @@
 #include "gd32f4xx_gpio.h"
 #include "main.h"
 
-#include "bsp_rtc.h"
+
 
 void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
 	// 打印收到了多少个字节
@@ -34,7 +34,8 @@ void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
 	}
 
 }
-
+#define CONVERT_NUM  (10)
+const uint8_t convertarr[CONVERT_NUM] = {0x00, 0x33, 0x66, 0x99, 0xCC, 0xFF, 0xCC, 0x99, 0x66, 0x33};
 int main(void)
 {
 	systick_config();
@@ -63,6 +64,8 @@ int main(void)
 	bsp_adc_Start_Init(ADC0, GPIOC, GPIO_PIN_0, ADC_TRANS_MODE_IT);
 	bsp_adc_Start_Init(ADC1, GPIOC, GPIO_PIN_2, ADC_TRANS_MODE_IT);
 	//bsp_adc_Start_Two_Init(ADC2, GPIOA, GPIO_PIN_0, GPIOA, GPIO_PIN_1, ADC_TRANS_MODE_DMA);单ADC复用
+
+	GD32_dac_bsp_Start(GPIOA, GPIO_PIN_4, DAC_IT, convertarr, CONVERT_NUM);
 	while(1) {
 		uint16_t adc0_val = bsp_get_adc_value(ADC0, 0);
 		uint16_t adc1_val = bsp_get_adc_value(ADC1, 0);

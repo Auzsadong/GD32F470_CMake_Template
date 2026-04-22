@@ -20,6 +20,8 @@
 #include "../../Bsp/bsp_led.h"
 #include  "bsp_uart.h"
 #include  "bsp_adc.h"
+#include "bsp_rtc.h"
+#include  "bsp_dac.h"
 
 #endif
 
