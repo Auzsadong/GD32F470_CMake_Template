@@ -65,7 +65,11 @@ int main(void)
 	bsp_adc_Start_Init(ADC1, GPIOC, GPIO_PIN_2, ADC_TRANS_MODE_IT);
 	//bsp_adc_Start_Two_Init(ADC2, GPIOA, GPIO_PIN_0, GPIOA, GPIO_PIN_1, ADC_TRANS_MODE_DMA);单ADC复用
 
+	/* 第一步：启动普通 CPU 中断模式，底层会自动记录数组长度为 10 */
 	GD32_dac_bsp_Start(GPIOA, GPIO_PIN_4, DAC_IT, convertarr, CONVERT_NUM);
+
+	/* 第二步：优雅地设定频率，比如我们想输出一个 120.5Hz 的波形 */
+	GD32_DAC_TIM5_Base(DAC0, 120.5f);
 	while(1) {
 		uint16_t adc0_val = bsp_get_adc_value(ADC0, 0);
 		uint16_t adc1_val = bsp_get_adc_value(ADC1, 0);

@@ -155,3 +155,50 @@ void TIMER5_DAC_IRQHandler(void)
         }
     }
 }
+/* 引入标准库系统主频变量 (在 system_gd32f4xx.c 中定义) */
+extern uint32_t SystemCoreClock;
+
+void GD32_DAC_TIM5_Base(uint32_t dac_periph, float freq)
+{
+    /* 1. 防御性检查：频率必须大于0，且必须已经调用过 Start 函数（确保 s_dac_len 不为0）*/
+    if (freq <= 0.0f || s_dac_len == 0) {
+        return;
+    }
+
+    /* 2. 计算定时器实际需要的触发频率：目标频率 * 数组点数 */
+    float target_trig_freq = freq * (float)s_dac_len;
+
+    /* 3. 获取 TIMER5 的时钟源频率
+     * GD32F4 的 TIMER5 挂载在 APB1 总线上。
+     * 默认配置下，APB1 分频系数为 4，而定时器时钟会自动乘 2，
+     * 所以 TIMER5 的时钟频率固定等于 SystemCoreClock / 2。
+     * (如: 主频 200MHz -> TIMER5 跑在 100MHz; 主频 240MHz -> TIMER5 跑在 120MHz)
+     */
+    uint32_t timer_clk = SystemCoreClock / 2;
+
+    /* 4. 计算总时钟分频系数 */
+    uint32_t total_div = (uint32_t)((float)timer_clk / target_trig_freq);
+    if (total_div == 0) {
+        total_div = 1;
+    }
+
+    /* 5. 动态分配 PSC 和 ARR (TIMER5 为16位定时器，最大值均为 65535) */
+    uint32_t psc = 0;
+    uint32_t arr = 0;
+
+    if (total_div <= 65536) {
+        psc = 0;
+        arr = total_div - 1;
+    } else {
+        /* 如果所需分频过大，则提高 PSC 以确保 ARR 在 65535 范围内 */
+        psc = (total_div / 65536);
+        arr = (total_div / (psc + 1)) - 1;
+    }
+
+    /* 6. 更新 TIMER5 的预分频器和重装载寄存器 */
+    timer_prescaler_config(TIMER5, psc, TIMER_PSC_RELOAD_NOW);
+    timer_autoreload_value_config(TIMER5, arr);
+
+    /* (可选) 手动产生一次更新事件，让配置立即生效，但会让当前计数清零 */
+    // timer_event_software_generate(TIMER5, TIMER_EVENT_SRC_UPG);
+}
