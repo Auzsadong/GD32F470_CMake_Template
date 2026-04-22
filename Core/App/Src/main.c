@@ -60,8 +60,8 @@ int main(void)
 
 	// 绘制一个矩形和一段文本
 	//OLED_DrawRectangle(10, 40, 50, 30, OLED_COLOR_NORMAL);
-	OLED_PrintASCIIString(10, 4, "GD32F4", &afont12x6, OLED_COLOR_NORMAL);
-	OLED_PrintASCIIString(10, 18, "Hello", &afont12x6, OLED_COLOR_NORMAL);
+	OLED_PrintASCIIString(10, 0, "GD32F4", &afont16x8, OLED_COLOR_NORMAL);
+	OLED_PrintASCIIString(10, 16, "Hello", &afont16x8, OLED_COLOR_NORMAL);
 
 	OLED_ShowFrame();
 
