@@ -14,10 +14,15 @@ void GD32_dac_bsp_Start(uint32_t gpio_periph, uint32_t pin, DAC_TransferMode_Enu
 {
     uint32_t dac_periph = DAC0;
     uint32_t dac_out = DAC_OUT0;
-    uint32_t dac_addr = 0x40007410; // 默认 DAC0_OUT0_R8DH
+    uint32_t dac_addr = 0x40007410;
 
-    /* 保存引脚信息，供中断里判断写哪个寄存器 */
+    /* 保存引脚信息 */
     s_dac_current_pin = pin;
+
+    /* 【关键修复】：把这三行提出来！无论是中断还是 DMA，都必须记录数组和长度 */
+    s_dac_data = data;
+    s_dac_len = len;
+    s_dac_index = 0;
 
     /* 1. 开启时钟 */
     rcu_periph_clock_enable(RCU_DAC);
@@ -43,26 +48,19 @@ void GD32_dac_bsp_Start(uint32_t gpio_periph, uint32_t pin, DAC_TransferMode_Enu
 
     /* 5. 核心模式分支配置 */
     if (mode == DAC_DMA) {
-        /* DMA 模式：定时器触发，DMA搬运 */
-        rcu_periph_clock_enable(RCU_DMA0);
+        rcu_periph_clock_enable(RCU_DMA0); /* 这里使用的是 DMA0，串口用的是 DMA1 */
         dac_trigger_source_config(dac_periph, dac_out, DAC_TRIGGER_T5_TRGO);
-        _dac_timer5_config(0); // 开启定时器，不开启中断
+        _dac_timer5_config(0);
         _dac_dma_config(dac_addr, data, len);
         dac_dma_enable(dac_periph, dac_out);
         dac_trigger_enable(dac_periph, dac_out);
 
     } else if (mode == DAC_IT) {
-        /* 普通中断模式：保存数据指针，定时器触发，CPU进中断搬运 */
-        s_dac_data = data;
-        s_dac_len = len;
-        s_dac_index = 0;
-
         dac_trigger_source_config(dac_periph, dac_out, DAC_TRIGGER_T5_TRGO);
         dac_trigger_enable(dac_periph, dac_out);
-        _dac_timer5_config(1); // 开启定时器，并开启更新中断
+        _dac_timer5_config(1);
 
     } else if (mode == DAC_CPU) {
-        /* 纯软件模式：无需定时器，由用户随时调函数写入 */
         dac_trigger_source_config(dac_periph, dac_out, DAC_TRIGGER_SOFTWARE);
         dac_trigger_enable(dac_periph, dac_out);
     }
@@ -155,34 +153,34 @@ void TIMER5_DAC_IRQHandler(void)
         }
     }
 }
-/* 引入标准库系统主频变量 (在 system_gd32f4xx.c 中定义) */
 extern uint32_t SystemCoreClock;
 
-void GD32_DAC_TIM5_Base(uint32_t dac_periph, float freq)
+/**
+ * @brief  动态设置 DAC 输出波形的频率 (全整型高频优化版)
+ * @param  dac_periph: DAC 外设 (如 DAC0)
+ * @param  freq:       期望输出的完整波形频率 (单位: Hz)
+ */
+void GD32_DAC_TIM5_Base(uint32_t dac_periph, uint32_t freq)
 {
-    /* 1. 防御性检查：频率必须大于0，且必须已经调用过 Start 函数（确保 s_dac_len 不为0）*/
-    if (freq <= 0.0f || s_dac_len == 0) {
+    /* 1. 防御性检查 */
+    if (freq == 0 || s_dac_len == 0) {
         return;
     }
 
-    /* 2. 计算定时器实际需要的触发频率：目标频率 * 数组点数 */
-    float target_trig_freq = freq * (float)s_dac_len;
+    /* 2. 计算定时器实际需要的触发频率 */
+    uint32_t target_trig_freq = freq * s_dac_len;
 
-    /* 3. 获取 TIMER5 的时钟源频率
-     * GD32F4 的 TIMER5 挂载在 APB1 总线上。
-     * 默认配置下，APB1 分频系数为 4，而定时器时钟会自动乘 2，
-     * 所以 TIMER5 的时钟频率固定等于 SystemCoreClock / 2。
-     * (如: 主频 200MHz -> TIMER5 跑在 100MHz; 主频 240MHz -> TIMER5 跑在 120MHz)
-     */
+    /* 3. 获取 TIMER5 的时钟源频率 (GD32F4的APB1定时器通常为 SystemCoreClock / 2) */
     uint32_t timer_clk = SystemCoreClock / 2;
 
-    /* 4. 计算总时钟分频系数 */
-    uint32_t total_div = (uint32_t)((float)timer_clk / target_trig_freq);
+    /* 4. 计算总时钟分频系数 (使用四舍五入的整型除法技巧，提高精度) */
+    uint32_t total_div = (timer_clk + (target_trig_freq / 2)) / target_trig_freq;
+
     if (total_div == 0) {
         total_div = 1;
     }
 
-    /* 5. 动态分配 PSC 和 ARR (TIMER5 为16位定时器，最大值均为 65535) */
+    /* 5. 动态分配 PSC 和 ARR (TIMER5 为16位定时器) */
     uint32_t psc = 0;
     uint32_t arr = 0;
 
@@ -190,15 +188,11 @@ void GD32_DAC_TIM5_Base(uint32_t dac_periph, float freq)
         psc = 0;
         arr = total_div - 1;
     } else {
-        /* 如果所需分频过大，则提高 PSC 以确保 ARR 在 65535 范围内 */
         psc = (total_div / 65536);
         arr = (total_div / (psc + 1)) - 1;
     }
 
-    /* 6. 更新 TIMER5 的预分频器和重装载寄存器 */
+    /* 6. 更新 TIMER5 的配置 */
     timer_prescaler_config(TIMER5, psc, TIMER_PSC_RELOAD_NOW);
     timer_autoreload_value_config(TIMER5, arr);
-
-    /* (可选) 手动产生一次更新事件，让配置立即生效，但会让当前计数清零 */
-    // timer_event_software_generate(TIMER5, TIMER_EVENT_SRC_UPG);
 }

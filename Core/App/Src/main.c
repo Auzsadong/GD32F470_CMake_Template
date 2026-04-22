@@ -1,6 +1,6 @@
 #include "gd32f4xx_gpio.h"
 #include "main.h"
-
+#include <math.h>
 
 
 void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
@@ -34,8 +34,8 @@ void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
 	}
 
 }
-#define CONVERT_NUM  (10)
-const uint8_t convertarr[CONVERT_NUM] = {0x00, 0x33, 0x66, 0x99, 0xCC, 0xFF, 0xCC, 0x99, 0x66, 0x33};
+#define CONVERT_NUM  (256)
+ uint8_t convertarr[CONVERT_NUM] = {};
 int main(void)
 {
 	systick_config();
@@ -65,11 +65,27 @@ int main(void)
 	bsp_adc_Start_Init(ADC1, GPIOC, GPIO_PIN_2, ADC_TRANS_MODE_IT);
 	//bsp_adc_Start_Two_Init(ADC2, GPIOA, GPIO_PIN_0, GPIOA, GPIO_PIN_1, ADC_TRANS_MODE_DMA);单ADC复用
 
+	/* 引入 ARM 数学库中的 PI 宏 (PI = 3.14159265358979f) */
+#define PI  3.14159265358979f
+
+
+	for (int i = 0; i < CONVERT_NUM; i++)
+	{
+		/* 计算弧度 */
+		float radians = 2.0f * PI * (float)i / (float)CONVERT_NUM;
+
+		/* 调用标准库的单精度正弦函数 */
+		float sin_val = sinf(radians);
+
+		/* 映射到 0~255 的 8位 DAC 范围 */
+		convertarr[i] = (uint8_t)((sin_val + 1.0f) * 127.5f);
+	}
+
 	/* 第一步：启动普通 CPU 中断模式，底层会自动记录数组长度为 10 */
-	GD32_dac_bsp_Start(GPIOA, GPIO_PIN_4, DAC_IT, convertarr, CONVERT_NUM);
+	GD32_dac_bsp_Start(GPIOA, GPIO_PIN_4, DAC_DMA, convertarr, CONVERT_NUM);
 
 	/* 第二步：优雅地设定频率，比如我们想输出一个 120.5Hz 的波形 */
-	GD32_DAC_TIM5_Base(DAC0, 10000.0f);
+	GD32_DAC_TIM5_Base(DAC0, 10000);
 	while(1) {
 		uint16_t adc0_val = bsp_get_adc_value(ADC0, 0);
 		uint16_t adc1_val = bsp_get_adc_value(ADC1, 0);

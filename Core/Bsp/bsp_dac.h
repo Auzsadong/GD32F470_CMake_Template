@@ -26,8 +26,8 @@ void GD32_dac_bsp_SetData(uint32_t pin, uint8_t value);
 /**
  * @brief  动态设置 DAC 输出波形的频率
  * @param  dac_periph: DAC 外设 (如 DAC0)
- * @param  freq:       期望输出的完整波形频率 (单位: Hz, 支持浮点数)
+ * @param  freq:       期望输出的完整波形频率 (单位: Hz)
  */
-void GD32_DAC_TIM5_Base(uint32_t dac_periph, float freq);
+void GD32_DAC_TIM5_Base(uint32_t dac_periph, uint32_t freq);
 
 #endif /* __BSP_DAC_H */
