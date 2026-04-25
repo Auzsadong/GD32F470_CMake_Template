@@ -1,6 +1,8 @@
 #include "gd32f4xx_gpio.h"
+#include "bsp_key.h"
 #include "main.h"
 #include <math.h>
+#include <stdio.h>
 
 
 void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
@@ -34,6 +36,43 @@ void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
 	}
 
 }
+
+/* 按键事件回调示例：KEY1(即 KEY0) 按下点亮 LED1，长按熄灭 */
+void My_Key_Event_Handler(KEY_ID_t id, KEY_Event_t evt) {
+	if (id != KEY_ID_1) return; // 仅处理第一个按键
+	if (evt == KEY_EVENT_PRESS) {
+		LED1.On();
+		printf("[KEY] KEY1 PRESS -> LED1 ON\r\n");
+	} else if (evt == KEY_EVENT_LONG) {
+		LED1.Off();
+		printf("[KEY] KEY1 LONG -> LED1 OFF\r\n");
+	}
+}
+
+/* Key2 按下计数并更新 OLED 第二行 */
+static uint32_t key2_count = 0;
+void My_Key2_Handler(KEY_ID_t id, KEY_Event_t evt) {
+	if (id != KEY_ID_2) return;
+	if (evt == KEY_EVENT_PRESS) {
+		key2_count++;
+		char buf[32];
+		snprintf(buf, sizeof(buf), "%lu", (unsigned long)key2_count);
+
+		/* 重新绘制一帧：第一行保持原样，第二行显示计数 */
+		OLED_NewFrame();
+		OLED_PrintASCIIString(10, 0, "GD32F4", &afont16x8, OLED_COLOR_NORMAL);
+		OLED_PrintASCIIString(10, 16, buf, &afont16x8, OLED_COLOR_NORMAL);
+		OLED_ShowFrame();
+
+		printf("[KEY] KEY2 PRESS -> count=%lu\r\n", (unsigned long)key2_count);
+	}
+}
+
+/* 全局按键分发器：在这里调用各个按键处理器 */
+void My_Key_Global_Handler(KEY_ID_t id, KEY_Event_t evt) {
+	My_Key_Event_Handler(id, evt);
+	My_Key2_Handler(id, evt);
+}
 #define CONVERT_NUM  (1024)
  uint8_t convertarr[CONVERT_NUM] = {};
 int main(void)
@@ -43,9 +82,13 @@ int main(void)
 
 	/* 1. 一键初始化所有 LED */
 	BSP_LED_InitAll();
+	/* 初始化按键 */
+	BSP_KEY_InitAll();
 
 	DebugUART.Init(115200);
 	DebugUART.RegisterRxFrameCallback(My_Uart_Frame_Handler);
+	/* 注册按键回调：统一入口，内部会分发给两个处理器 */
+	BSP_KEY_RegisterCallback(My_Key_Global_Handler);
 
 	/* 2. 炫酷开机自检与打印 */
 	printf("\r\n========================================\r\n");
@@ -61,7 +104,7 @@ int main(void)
 	// 绘制一个矩形和一段文本
 	//OLED_DrawRectangle(10, 40, 50, 30, OLED_COLOR_NORMAL);
 	OLED_PrintASCIIString(10, 0, "GD32F4", &afont16x8, OLED_COLOR_NORMAL);
-	OLED_PrintASCIIString(10, 16, "Hello", &afont16x8, OLED_COLOR_NORMAL);
+	OLED_PrintASCIIString(10, 16, "ready", &afont16x8, OLED_COLOR_NORMAL);
 
 	OLED_ShowFrame();
 
@@ -110,10 +153,17 @@ int main(void)
 	printf("ADC0 (PC0) Voltage = %.2f V\r\n", adc0_val * 3.3 / 4096.0);
 	printf("ADC1 (PC2) Voltage = %.2f V\r\n", adc1_val * 3.3 / 4096.0);
 
+	/* 主循环：每 10ms 扫描按键，心跳灯每 1000ms 切换一次 */
+	uint32_t hb_ms = 0;
 	while(1) {
+		BSP_KEY_Scan();
+		delay_1ms(10);
+		hb_ms += 10;
 
-		LED6.Toggle(); // 心跳灯
-		delay_1ms(1000);
+		if (hb_ms >= 1000) {
+			LED6.Toggle(); // 心跳灯
+			hb_ms = 0;
+		}
 	}
 }
 
