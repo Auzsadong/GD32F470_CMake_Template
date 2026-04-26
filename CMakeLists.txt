@@ -19,7 +19,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Bsp/bsp_dac.c
         Core/Bsp/bsp_dac.h
         Core/Bsp/bsp_oled.c
-        Core/Bsp/bsp_key.c)
+        Core/Bsp/bsp_key.c
+        Core/Bsp/bsp_pmu.c
+        Core/Bsp/bsp_pmu.h)
 
 # 3. 宏定义
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
