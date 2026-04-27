@@ -60,7 +60,12 @@ MEMORY
   RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 192K
   /* TCMSRAM (对应 STM32 的 CCMRAM 区域) */
   CCMRAM (xrw)   : ORIGIN = 0x10000000, LENGTH = 64K
-  FLASH (rx)     : ORIGIN = 0x08000000, LENGTH = 512K
+
+  /* ======== 修改处 ======== */
+  /* 原本为: ORIGIN = 0x08000000, LENGTH = 512K */
+  /* 现在为 Bootloader 预留前 64KB 空间，App 从 0x08010000 开始 */
+  FLASH (rx)     : ORIGIN = 0x08010000, LENGTH = 448K
+  /* ======================== */
 }
 
 /* 堆栈顶地址更新 [cite: 13] */

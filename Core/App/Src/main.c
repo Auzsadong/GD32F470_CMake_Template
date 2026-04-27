@@ -6,6 +6,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#define CONVERT_NUM  (1024)
+uint8_t convertarr[CONVERT_NUM] = {};
+
+/* 新增：App 向量表偏移量 (0x08010000 距离 0x08000000 的偏移量) */
+#define APP_START_OFFSET 0x10000
+
 /* --- 原有 Uart 处理函数保持不变 --- */
 void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
     printf("\r\n[UART_RX] Received %d Bytes. Content: ", length);
@@ -99,11 +105,17 @@ void My_Key_Global_Handler(KEY_ID_t id, KEY_Event_t evt) {
     My_Key5_Handler(id, evt); // 3. 注册 Key5 到分发器
 }
 
-#define CONVERT_NUM  (1024)
-uint8_t convertarr[CONVERT_NUM] = {};
 
 int main(void)
 {
+    /* ==================== Bootloader 适配核心代码 ==================== */
+    /* 1. 重定向中断向量表 (极其重要，否则一旦触发中断直接跑飞) */
+    nvic_vector_table_set(NVIC_VECTTAB_FLASH, APP_START_OFFSET);
+
+    /* 2. 重新开启全局中断 (因为 Bootloader 跳转前把它关了) */
+    __enable_irq();
+    /* ================================================================= */
+    
     systick_config();
 
     rcu_periph_clock_enable(RCU_PMU);
