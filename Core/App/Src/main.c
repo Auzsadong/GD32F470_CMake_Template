@@ -7,6 +7,10 @@
 #include <string.h>
 #include "gd30ad3344.h"
 
+/* 在 main 函数循环外定义标定常量，方便以后统一修改 */
+#define CAL_V_ZERO      1.003f    // 0度时的电压标定点
+#define CAL_SLOPE_LOW   242.71f   // 低温区斜率 (C/V)
+
 #define CONVERT_NUM  (1024)
 uint8_t convertarr[CONVERT_NUM] = {};
 
@@ -164,41 +168,43 @@ int main(void)
             adc0_val * 3.3 / 4096.0, adc1_val * 3.3 / 4096.0);
 
     uint32_t hb_ms = 0;
-    uint32_t gd30_ms = 0; // ===== 新增: GD30 定时器变量 =====
-
+    uint32_t gd30_ms = 0;
     while(1) {
         BSP_KEY_Scan();
         delay_1ms(10);
-        hb_ms += 10;
-        gd30_ms += 10; // ===== 新增: 累加时间 =====
+        gd30_ms += 10;
 
-        /* ===== 新增: 每 500ms 读取一次外部 ADC ===== */
+        /* 每 500ms 执行一次低温标定测量 */
         if (gd30_ms >= 500) {
             gd30_ms = 0;
 
-            // 1. 读取原始数据 (16位带符号整数，满量程 7FFFh)
+            // 1. 获取外置 ADC 原始电压 (结合 2.5V 外部参考)
             int16_t raw_val = GD30AD3344_ReadData_SingleShot(&gd30_dev);
-
-            // 2. 将原始代码转换为差分电压差 (PGA = ±2.048V)
-            // LSB 大小 = 2.048V / 32768 = 62.5uV
             float v_diff = (float)raw_val * (2.048f / 32768.0f);
-
-            // 3. 计算绝对电压：V_AIN0 = V_diff + V_AIN3 (2.5V 外部参考)
             float v_ain0 = v_diff + 2.5f;
 
-            // 4. 串口打印监视
-            printf("[ADC] GD30 Raw: %6d | V_diff: %7.4f V | AIN0: %7.4f V\r\n", raw_val, v_diff, v_ain0);
+            // 2. 应用低温标定公式
+            // 当 V < 1.003V 时，该公式计算的是低温区的线性模拟
+            float temp_result = CAL_SLOPE_LOW * (v_ain0 - CAL_V_ZERO);
 
-            // 5. 显示在 OLED 上
-            char oled_buf[32];
-            snprintf(oled_buf, sizeof(oled_buf), "AIN0: %.3f V", v_ain0);
+            // 3. 串口数据交互
+            printf("[CAL-LOW] Voltage: %.4f V | Temp: %.2f C\r\n", v_ain0, temp_result);
+
+            // 4. OLED 实时显示
+            char str_v[20], str_t[20];
+            snprintf(str_v, sizeof(str_v), "V: %.4f V", v_ain0);
+            snprintf(str_t, sizeof(str_t), "T: %.2f C (L)", temp_result); // (L) 表示低温标定区
+
             OLED_NewFrame();
-            OLED_PrintASCIIString(10, 0, "GD30AD3344", &afont16x8, OLED_COLOR_NORMAL);
-            OLED_PrintASCIIString(10, 16, oled_buf, &afont16x8, OLED_COLOR_NORMAL);
+            OLED_PrintASCIIString(10, 0,  "GD30 Calibration", &afont16x8, OLED_COLOR_NORMAL);
+            OLED_PrintASCIIString(10, 16, str_v, &afont16x8, OLED_COLOR_NORMAL);
+            OLED_PrintASCIIString(10, 32, str_t, &afont16x8, OLED_COLOR_NORMAL);
             OLED_ShowFrame();
         }
-        /* ================================================== */
 
+        // 原有的心跳灯逻辑
+        static uint32_t hb_ms = 0;
+        hb_ms += 10;
         if (hb_ms >= 1000) {
             LED6.Toggle();
             hb_ms = 0;
