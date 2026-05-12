@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 # 1. 设置项目名称
-set(CMAKE_PROJECT_NAME F470_Cmake_Template)
+set(CMAKE_PROJECT_NAME F470_Cmake_Bsp_example)
 project(${CMAKE_PROJECT_NAME} C ASM)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
@@ -21,7 +21,9 @@ add_executable(${CMAKE_PROJECT_NAME}
         Core/Bsp/bsp_oled.c
         Core/Bsp/bsp_key.c
         Core/Bsp/bsp_pmu.c
-        Core/Bsp/bsp_pmu.h)
+        Core/Bsp/bsp_pmu.h
+        Core/Bsp/gd30ad3344.c
+        Core/Bsp/gd30ad3344.h)
 
 # 3. 宏定义
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
