@@ -246,36 +246,52 @@ int main(void)
             // 2. 应用二阶多项式得到原始温度测量值
             float temp_raw = (CAL_POLY_A * v_ain0 * v_ain0) + (CAL_POLY_B * v_ain0) + CAL_POLY_C;
 
-            // 3. 卡尔曼滤波平滑
+            // 3. 【新增：防脉冲软限幅】剔除 ADC 的突发型尖峰毛刺干扰
+            static float s_last_valid_raw = 0.0f;
+            static uint8_t s_first_run = 1;
+            if (s_first_run) {
+                s_last_valid_raw = temp_raw;
+                s_first_run = 0;
+            }
+
+            // 如果单次跳变超过 1.0°C，且不属于手动切换电阻的大跳变(5.0°C)，则判定为坏点，进行限幅
+            float delta = fabsf(temp_raw - s_last_valid_raw);
+            if (delta > 1.0f && delta < 5.0f) {
+                // 将坏点向历史值限幅拉回，不让尖峰破坏卡尔曼状态
+                temp_raw = s_last_valid_raw + (temp_raw > s_last_valid_raw ? 0.1f : -0.1f);
+            }
+            s_last_valid_raw = temp_raw;
+
+            // 4. 【加大卡尔曼滤波幅度】动态调整超参数 r
+            // 直接动态重设 r 为 2.0f (大幅削弱 Raw 测量的权重，强制平滑)
+            t_kalman.r = 2.0f;
             t_filtered_latest = Kalman_Filter(&t_kalman, temp_raw);
 
-            // 当切换电阻档位导致温度发生巨大突变时，重置卡尔曼滤波器
-            static float last_raw = 0.0f;
-            if (fabsf(temp_raw - last_raw) > 5.0f) {
+            // 当切换电阻档位导致温度发生巨大突变时(手动换挡)，重置卡尔曼滤波器
+            if (delta > 5.0f) {
                 t_kalman.is_init = 0;
                 t_filtered_latest = Kalman_Filter(&t_kalman, temp_raw);
+                s_last_valid_raw = temp_raw;
             }
-            last_raw = temp_raw;
 
-            // 4. 应用由 Key6 实时校准生成的动态零点偏置
+            // 5. 应用由 Key6 实时校准生成的动态零点偏置
             float temp_final = t_filtered_latest + g_cal_temp_offset;
 
-            // 5. 串口数据交互 (实时监测噪声、滤波状态及动态校准后的最终输出)
+            // 6. 串口数据交互
             printf("[CAL-NEW] Voltage: %.4f V | Raw: %.2f C | Filtered: %.2f C | Final: %.2f C\r\n",
                     v_ain0, temp_raw, t_filtered_latest, temp_final);
 
-            // 6. OLED 实时显示
+            // 7. OLED 实时显示
             char str_v[20], str_t[20];
             snprintf(str_v, sizeof(str_v), "V: %.4f V", v_ain0);
             snprintf(str_t, sizeof(str_t), "T: %.2f C", temp_final);
 
             OLED_NewFrame();
-            OLED_PrintASCIIString(10, 0,  "GD30 Dynamic Cal", &afont16x8, OLED_COLOR_NORMAL);
+            OLED_PrintASCIIString(10, 0,  "GD30 Strong LPF", &afont16x8, OLED_COLOR_NORMAL);
             OLED_PrintASCIIString(10, 16, str_v, &afont16x8, OLED_COLOR_NORMAL);
             OLED_PrintASCIIString(10, 32, str_t, &afont16x8, OLED_COLOR_NORMAL);
             OLED_ShowFrame();
         }
-
         // 原有的心跳灯逻辑
         static uint32_t hb_ms = 0;
         hb_ms += 10;
