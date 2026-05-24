@@ -8,7 +8,7 @@
 #include "gd30ad3344.h"
 
 /* ========================================================================= */
-/*                   新二阶多项式标定参数（基于标准 PT100 拟合）                 */
+/*                   二阶多项式标定参数（基于标准 PT100 拟合）                 */
 /*                      公式: Temp = A * V^2 + B * V + C                      */
 /* ========================================================================= */
 #define CAL_POLY_A      21.72225942f
@@ -22,6 +22,46 @@ uint8_t convertarr[CONVERT_NUM] = {};
 
 /* ===== 全局实例化 GD30AD3344 设备句柄 ===== */
 GD30AD3344_HandleTypeDef gd30_dev;
+
+/* ========================================================================= */
+/*                       一维卡尔曼滤波器结构体与实体                          */
+/* ========================================================================= */
+typedef struct {
+    float x;      // 滤波后的状态最优估计值 (温度)
+    float p;      // 估计协方差
+    float q;      // 过程噪声协方差
+    float r;      // 测量噪声协方差
+    uint8_t is_init; // 首次运行初始化标志
+} Kalman_HandleTypeDef;
+
+// 实例化全局温度卡尔曼滤波器
+Kalman_HandleTypeDef t_kalman = {
+    .x = 0.0f,
+    .p = 1.0f,
+    .q = 0.002f,
+    .r = 0.35f,
+    .is_init = 0
+};
+
+float Kalman_Filter(Kalman_HandleTypeDef *klm, float measurement) {
+    if (!klm->is_init) {
+        klm->x = measurement;
+        klm->p = 1.0f;
+        klm->is_init = 1;
+        return measurement;
+    }
+    klm->p = klm->p + klm->q;
+    float k_gain = klm->p / (klm->p + klm->r);
+    klm->x = klm->x + k_gain * (measurement - klm->x);
+    klm->p = (1.0f - k_gain) * klm->p;
+    return klm->x;
+}
+
+/* ========================================================================= */
+/*               新增: 动态零点校准全局变量 (消除电流源/温漂)                   */
+/* ========================================================================= */
+volatile float g_cal_temp_offset = 0.0f;
+volatile float t_filtered_latest = 0.0f; // 用于给按键中断同步最新的滤波后温度
 
 /* --- 原有 Uart 处理函数保持不变 --- */
 void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
@@ -39,7 +79,7 @@ void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
     }
     if (length >= 7 &&
        buffer[0] == 'L' && buffer[1] == 'E' && buffer[2] == 'D' &&
-       buffer[3] == '_' && buffer[4] == 'O' && buffer[5] == 'F'&&buffer[6] == 'F') {
+       buffer[3] == '_' && buffer[4] == 'O' && buffer[5] == 'F' && buffer[6] == 'F') {
        LED1.Off();
        printf(">> Command Executed: LED1 is OFF!\r\n");
     }
@@ -78,22 +118,15 @@ void My_Key2_Handler(KEY_ID_t id, KEY_Event_t evt) {
 
 void My_Key5_Handler(KEY_ID_t id, KEY_Event_t evt) {
     if (id != KEY_ID_5) return;
-
-    if (evt == KEY_EVENT_PRESS)
-    {
+    if (evt == KEY_EVENT_PRESS) {
         printf("[SYS] Key5 Pressed! Entering Deep-Sleep Mode...\r\n");
-
         OLED_NewFrame();
         OLED_PrintASCIIString(10, 0, "System", &afont16x8, OLED_COLOR_NORMAL);
         OLED_PrintASCIIString(10, 16, "Sleeping...", &afont16x8, OLED_COLOR_NORMAL);
         OLED_ShowFrame();
-
         delay_1ms(100);
-
         bsp_pmu_enter_deepsleep();
-
         printf("\r\n[SYS] Waked up from Deep-Sleep!\r\n");
-
         OLED_NewFrame();
         OLED_PrintASCIIString(10, 0, "System", &afont16x8, OLED_COLOR_NORMAL);
         OLED_PrintASCIIString(10, 16, "Waked up!", &afont16x8, OLED_COLOR_NORMAL);
@@ -101,10 +134,31 @@ void My_Key5_Handler(KEY_ID_t id, KEY_Event_t evt) {
     }
 }
 
+/* ===== 新增: KEY6 动态零点校准回调函数 ===== */
+void My_Key6_Handler(KEY_ID_t id, KEY_Event_t evt) {
+    if (id != KEY_ID_6) return;
+    if (evt == KEY_EVENT_PRESS) {
+        // 捕获当前的滤波温度值，计算将其强制归零所需的偏差补偿量
+        g_cal_temp_offset = 0.0f - t_filtered_latest;
+
+        printf("\r\n[CAL-SYS] !!! KEY6 Pressed: Zero-Point Calibration Active !!!\r\n");
+        printf("[CAL-SYS] Current Filtered Temp: %.2f C -> Calibrated to: 0.00 C\r\n", t_filtered_latest);
+        printf("[CAL-SYS] New Dynamic Offset: %.4f C\r\n\r\n", g_cal_temp_offset);
+
+        // OLED 界面闪烁提示校准成功
+        OLED_NewFrame();
+        OLED_PrintASCIIString(10, 0,  "Calibration", &afont16x8, OLED_COLOR_NORMAL);
+        OLED_PrintASCIIString(10, 16, "Zero-Point OK!", &afont16x8, OLED_COLOR_NORMAL);
+        OLED_ShowFrame();
+        delay_1ms(300); // 稍微延时阻挡一下显示
+    }
+}
+
 void My_Key_Global_Handler(KEY_ID_t id, KEY_Event_t evt) {
     My_Key_Event_Handler(id, evt);
     My_Key2_Handler(id, evt);
     My_Key5_Handler(id, evt);
+    My_Key6_Handler(id, evt); // 将 Key6 挂载到全局分发中
 }
 
 int main(void)
@@ -157,7 +211,6 @@ int main(void)
 
     /* ===== 初始化 GD30AD3344 ===== */
     GD30AD3344_Init(&gd30_dev);
-    /* 确认配置：AIN0相对AIN3(外部2.5V参考)，量程±2.048V，100SPS，单次触发 */
     GD30AD3344_SetConfig(&gd30_dev, GD30_MUX_AIN0_AIN3, GD30_PGA_2_048V, GD30_DR_100SPS, GD30_MODE_SINGLE_SHOT);
     printf("[SYS] GD30AD3344 Initialized. AIN3 ref enabled.\r\n");
 
@@ -185,24 +238,39 @@ int main(void)
         if (gd30_ms >= 500) {
             gd30_ms = 0;
 
-            // 1. 获取外置 ADC 原始电压 (结合 2.5V 外部参考)
+            // 1. 获取外置 ADC 原始电压
             int16_t raw_val = GD30AD3344_ReadData_SingleShot(&gd30_dev);
             float v_diff = (float)raw_val * (2.048f / 32768.0f);
             float v_ain0 = v_diff + 2.5f;
 
-            // 2. 应用全新的二阶最小二乘法多项式公式
-            float temp_result = (CAL_POLY_A * v_ain0 * v_ain0) + (CAL_POLY_B * v_ain0) + CAL_POLY_C;
+            // 2. 应用二阶多项式得到原始温度测量值
+            float temp_raw = (CAL_POLY_A * v_ain0 * v_ain0) + (CAL_POLY_B * v_ain0) + CAL_POLY_C;
 
-            // 3. 串口数据交互
-            printf("[CAL-NEW] Voltage: %.4f V | Temp: %.2f C\r\n", v_ain0, temp_result);
+            // 3. 卡尔曼滤波平滑
+            t_filtered_latest = Kalman_Filter(&t_kalman, temp_raw);
 
-            // 4. OLED 实时显示新计算出的准确温度
+            // 当切换电阻档位导致温度发生巨大突变时，重置卡尔曼滤波器
+            static float last_raw = 0.0f;
+            if (fabsf(temp_raw - last_raw) > 5.0f) {
+                t_kalman.is_init = 0;
+                t_filtered_latest = Kalman_Filter(&t_kalman, temp_raw);
+            }
+            last_raw = temp_raw;
+
+            // 4. 应用由 Key6 实时校准生成的动态零点偏置
+            float temp_final = t_filtered_latest + g_cal_temp_offset;
+
+            // 5. 串口数据交互 (实时监测噪声、滤波状态及动态校准后的最终输出)
+            printf("[CAL-NEW] Voltage: %.4f V | Raw: %.2f C | Filtered: %.2f C | Final: %.2f C\r\n",
+                    v_ain0, temp_raw, t_filtered_latest, temp_final);
+
+            // 6. OLED 实时显示
             char str_v[20], str_t[20];
             snprintf(str_v, sizeof(str_v), "V: %.4f V", v_ain0);
-            snprintf(str_t, sizeof(str_t), "T: %.2f C", temp_result);
+            snprintf(str_t, sizeof(str_t), "T: %.2f C", temp_final);
 
             OLED_NewFrame();
-            OLED_PrintASCIIString(10, 0,  "GD30 Calibrated", &afont16x8, OLED_COLOR_NORMAL);
+            OLED_PrintASCIIString(10, 0,  "GD30 Dynamic Cal", &afont16x8, OLED_COLOR_NORMAL);
             OLED_PrintASCIIString(10, 16, str_v, &afont16x8, OLED_COLOR_NORMAL);
             OLED_PrintASCIIString(10, 32, str_t, &afont16x8, OLED_COLOR_NORMAL);
             OLED_ShowFrame();
