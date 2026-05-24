@@ -39,7 +39,7 @@
 
 #define KEY6_RCU   RCU_GPIOD
 #define KEY6_PORT  GPIOD
-#define KEY6_PIN   GPIO_PIN_6
+#define KEY6_PIN   GPIO_PIN_7
 
 /* 按键电平定义：按下时为 0 (低电平) 或 1 (高电平)。
  * 默认为低有效（短接至 GND 时触发），如果你的电路是高有效请改为 1。

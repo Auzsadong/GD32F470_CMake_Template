@@ -127,6 +127,12 @@ int main(void)
     DebugUART.Init(115200);
     DebugUART.RegisterRxFrameCallback(My_Uart_Frame_Handler);
     BSP_KEY_RegisterCallback(My_Key_Global_Handler);
+    //RS458使能/
+    gpio_mode_set(GPIOE, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO_PIN_8);
+    gpio_output_options_set(GPIOE, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_8);
+    gpio_bit_set(GPIOE, GPIO_PIN_8);
+    printf("\r\n--- GD32F470 RS458 UART is ready ---\r\n");
+
 
     printf("\r\n========================================\r\n");
     printf("=   GD32F470 System Boot Successful!   =\r\n");
@@ -188,7 +194,7 @@ int main(void)
             float temp_result = CAL_SLOPE_LOW * (v_ain0 - CAL_V_ZERO);
 
             // 3. 串口数据交互
-            printf("[CAL-LOW] Voltage: %.4f V | Temp: %.2f C\r\n", v_ain0, temp_result);
+            printf("[CAL-LOW] Voltage: %.4f V | Temp: %.2f ℃\r\n", v_ain0, temp_result);
 
             // 4. OLED 实时显示
             char str_v[20], str_t[20];
