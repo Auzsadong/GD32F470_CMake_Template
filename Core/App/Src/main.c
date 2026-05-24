@@ -7,16 +7,20 @@
 #include <string.h>
 #include "gd30ad3344.h"
 
-/* 在 main 函数循环外定义标定常量，方便以后统一修改 */
-#define CAL_V_ZERO      1.003f    // 0度时的电压标定点
-#define CAL_SLOPE_LOW   242.71f   // 低温区斜率 (C/V)
+/* ========================================================================= */
+/*                   新二阶多项式标定参数（基于标准 PT100 拟合）                 */
+/*                      公式: Temp = A * V^2 + B * V + C                      */
+/* ========================================================================= */
+#define CAL_POLY_A      21.72225942f
+#define CAL_POLY_B      209.51587377f
+#define CAL_POLY_C      -233.06876883f
 
 #define CONVERT_NUM  (1024)
 uint8_t convertarr[CONVERT_NUM] = {};
 
 #define APP_START_OFFSET 0x10000
 
-/* ===== 新增: 全局实例化 GD30AD3344 设备句柄 ===== */
+/* ===== 全局实例化 GD30AD3344 设备句柄 ===== */
 GD30AD3344_HandleTypeDef gd30_dev;
 
 /* --- 原有 Uart 处理函数保持不变 --- */
@@ -45,7 +49,6 @@ void My_Uart_Frame_Handler(uint8_t* buffer, uint16_t length) {
 }
 
 /* --- 按键回调函数组 --- */
-
 void My_Key_Event_Handler(KEY_ID_t id, KEY_Event_t evt) {
     if (id != KEY_ID_1) return;
     if (evt == KEY_EVENT_PRESS) {
@@ -127,12 +130,12 @@ int main(void)
     DebugUART.Init(115200);
     DebugUART.RegisterRxFrameCallback(My_Uart_Frame_Handler);
     BSP_KEY_RegisterCallback(My_Key_Global_Handler);
-    //RS458使能/
+
+    // RS485使能
     gpio_mode_set(GPIOE, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO_PIN_8);
     gpio_output_options_set(GPIOE, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_8);
     gpio_bit_set(GPIOE, GPIO_PIN_8);
-    printf("\r\n--- GD32F470 RS458 UART is ready ---\r\n");
-
+    printf("\r\n--- GD32F470 RS485 UART is ready ---\r\n");
 
     printf("\r\n========================================\r\n");
     printf("=   GD32F470 System Boot Successful!   =\r\n");
@@ -152,12 +155,11 @@ int main(void)
     bsp_adc_Start_Init(ADC0, GPIOC, GPIO_PIN_0, ADC_TRANS_MODE_IT);
     bsp_adc_Start_Init(ADC1, GPIOC, GPIO_PIN_2, ADC_TRANS_MODE_IT);
 
-    /* ===== 新增: 初始化 GD30AD3344 ===== */
+    /* ===== 初始化 GD30AD3344 ===== */
     GD30AD3344_Init(&gd30_dev);
     /* 确认配置：AIN0相对AIN3(外部2.5V参考)，量程±2.048V，100SPS，单次触发 */
     GD30AD3344_SetConfig(&gd30_dev, GD30_MUX_AIN0_AIN3, GD30_PGA_2_048V, GD30_DR_100SPS, GD30_MODE_SINGLE_SHOT);
     printf("[SYS] GD30AD3344 Initialized. AIN3 ref enabled.\r\n");
-    /* ==================================== */
 
     /* DAC 波形生成逻辑 */
 #define PI  3.14159265358979f
@@ -173,14 +175,13 @@ int main(void)
     printf("ADC0 Voltage = %.2f V | ADC1 Voltage = %.2f V\r\n",
             adc0_val * 3.3 / 4096.0, adc1_val * 3.3 / 4096.0);
 
-    uint32_t hb_ms = 0;
     uint32_t gd30_ms = 0;
     while(1) {
         BSP_KEY_Scan();
         delay_1ms(10);
         gd30_ms += 10;
 
-        /* 每 500ms 执行一次低温标定测量 */
+        /* 每 500ms 执行一次温度解算与数据上报 */
         if (gd30_ms >= 500) {
             gd30_ms = 0;
 
@@ -189,20 +190,19 @@ int main(void)
             float v_diff = (float)raw_val * (2.048f / 32768.0f);
             float v_ain0 = v_diff + 2.5f;
 
-            // 2. 应用低温标定公式
-            // 当 V < 1.003V 时，该公式计算的是低温区的线性模拟
-            float temp_result = CAL_SLOPE_LOW * (v_ain0 - CAL_V_ZERO);
+            // 2. 应用全新的二阶最小二乘法多项式公式
+            float temp_result = (CAL_POLY_A * v_ain0 * v_ain0) + (CAL_POLY_B * v_ain0) + CAL_POLY_C;
 
             // 3. 串口数据交互
-            printf("[CAL-LOW] Voltage: %.4f V | Temp: %.2f ℃\r\n", v_ain0, temp_result);
+            printf("[CAL-NEW] Voltage: %.4f V | Temp: %.2f C\r\n", v_ain0, temp_result);
 
-            // 4. OLED 实时显示
+            // 4. OLED 实时显示新计算出的准确温度
             char str_v[20], str_t[20];
             snprintf(str_v, sizeof(str_v), "V: %.4f V", v_ain0);
-            snprintf(str_t, sizeof(str_t), "T: %.2f C (L)", temp_result); // (L) 表示低温标定区
+            snprintf(str_t, sizeof(str_t), "T: %.2f C", temp_result);
 
             OLED_NewFrame();
-            OLED_PrintASCIIString(10, 0,  "GD30 Calibration", &afont16x8, OLED_COLOR_NORMAL);
+            OLED_PrintASCIIString(10, 0,  "GD30 Calibrated", &afont16x8, OLED_COLOR_NORMAL);
             OLED_PrintASCIIString(10, 16, str_v, &afont16x8, OLED_COLOR_NORMAL);
             OLED_PrintASCIIString(10, 32, str_t, &afont16x8, OLED_COLOR_NORMAL);
             OLED_ShowFrame();
